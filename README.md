@@ -1,5 +1,6 @@
 # 4c6ff5
-Keywords WebGPU, GPU computing, parallel processing, compute shaders, real-time rendering, mouse picking, object selection, triangle intersection, inverse transformation, matrix composition, branchless algorithms, massively parallel, state machines
+### Keywords
+WebGPU, GPU computing, parallel processing, compute shaders, real-time rendering, mouse picking, object selection, triangle intersection, inverse transformation, matrix composition, branchless algorithms, massively parallel, state machines
 
 # Summary
 This project demonstrates a novel approach to real-time object picking that achieves unprecedented scale and performance. By inverting the traditional picking problem -- transforming mouse coordinates into triangle space rather than testing complex shapes -- the system enables real-time interaction with 500,000+ triangles at mousemove frequency.
