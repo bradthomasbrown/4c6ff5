@@ -1,0 +1,411 @@
+<script>
+  document.body.innerHTML = "";
+  let { _c5a3_, _32a2_ } = window;
+  if (!_c5a3_) _c5a3_ = window._c5a3_ = {};
+  if (!_32a2_) _32a2_ = window._32a2_ = {};
+  let _aa35_ = _c5a3_._aa35_ = {};
+
+  // basic information
+  const floatSize = 4;
+  const floatsPerPosition = 4; // x y z w
+  const floatsPerColor = 4; // r b g a
+  const positionSize = floatsPerPosition * floatSize; // x y z w
+  const colorSize = floatsPerColor * floatSize; // r b g a
+  const vertexSize = positionSize + colorSize;
+  const verticesPerTriangle = 3;
+  const triangleSize = verticesPerTriangle * vertexSize;
+  const trianglesPerQuad = 2;
+  const quadSize = trianglesPerQuad * triangleSize;
+  const verticesPerQuad = trianglesPerQuad * verticesPerTriangle;
+  const floatsPerTransform = 0x10;
+  const transformSize = floatsPerTransform * floatSize;
+
+  // html setup
+  const canvas = document.createElement("canvas");
+  canvas.style.cursor = "none";
+  canvas.width = 1024;
+  canvas.height = 1024;
+  document.body.appendChild(canvas);
+
+  // web gpu setup
+  const adapter = await navigator.gpu.requestAdapter();
+
+  _32a2_.device = await adapter.requestDevice();
+  if (_c5a3_.device) _c5a3_.device.destroy();
+  _c5a3_.device = _32a2_.device;
+
+  _32a2_.context = canvas.getContext("webgpu");
+  if (_c5a3_.context) _c5a3_.context.unconfigure();
+  _c5a3_.context = _32a2_.context;
+  _c5a3_.context.configure({ device: _c5a3_.device, format: navigator.gpu.getPreferredCanvasFormat() });
+
+  _c5a3_.shaders = { compute: { _276b_: {}, _1d09_: {} }, vertex: {}, fragment: {} };
+
+  const triangleCount = 1 << 19;
+  const workgroupX = Math.min(256, triangleCount);
+  const workgroupY = triangleCount / workgroupX;
+
+  _c5a3_.shaders.compute._276b_.code =
+  `struct _5299_ {
+  	opcode: u32,
+  	parameter0: f32,
+  	parameter1: f32,
+  	parameter2: f32 
+  }
+    struct _9707_ {
+  	_5cbe_: mat4x4f,
+  	_121d_: mat4x4f
+  };
+  @group(0) @binding(0) var<storage, read> _76aa_: array<array<_5299_, 8>, ${triangleCount}>;
+  @group(0) @binding(1) var<storage, read_write> _9a04_: array<_9707_, ${triangleCount}>;
+  @compute @workgroup_size(${workgroupX}, 1, 1) fn main(
+  	@builtin(global_invocation_id) id: vec3<u32>
+  ) {
+  	var _fcaa_: mat4x4f;
+  	var _6ade_: mat4x4f;
+  	var _1ef7_: mat4x4f;
+  	var _8556_: array<_5299_, 8>;
+  	var _a571_: _9707_;
+  	_8556_ = _76aa_[${workgroupX} * id.y + id.x];
+  	_fcaa_ = mat4x4f(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
+  	_6ade_ = _fcaa_;
+  	_1ef7_ = _fcaa_;
+  	for (var i = 0; i < 8; i++) {
+		  var _d05d_: _5299_;
+		  var _e6d7_: _5299_;
+		  _d05d_ = _8556_[i];
+		  _e6d7_ = _8556_[(8 - 1) - i];
+		  _6ade_ *= mat4x4f(
+  			select(1, _d05d_.parameter0, _d05d_.opcode == 0x01), // scale x
+			  select(0, _d05d_.parameter0, _d05d_.opcode == 0x02), // shear x by y
+			  select(0, _d05d_.parameter1, _d05d_.opcode == 0x02), // shear x by z
+			  select(0, _d05d_.parameter0, _d05d_.opcode == 0x03), // translate x
+  
+			  select(0, _d05d_.parameter0, _d05d_.opcode == 0x04), // shear y by x
+			  select(1, _d05d_.parameter1, _d05d_.opcode == 0x01), // scale y
+			  select(0, _d05d_.parameter1, _d05d_.opcode == 0x04), // shear y by z
+			  select(0, _d05d_.parameter1, _d05d_.opcode == 0x03), // translate y
+  
+			  select(0, _d05d_.parameter0, _d05d_.opcode == 0x05), // shear z by x
+			  select(0, _d05d_.parameter1, _d05d_.opcode == 0x05), // shear z by y
+			  select(1, _d05d_.parameter2, _d05d_.opcode == 0x01), // scale z
+  			select(0, _d05d_.parameter2, _d05d_.opcode == 0x03), // translate z
+  
+			  0, 0, 0, 1
+		  );
+		  _1ef7_ *= mat4x4f(
+  			select(1, 1/_e6d7_.parameter0, _e6d7_.opcode == 0x01),
+			  select(0,  -_e6d7_.parameter0, _e6d7_.opcode == 0x02),
+			  select(0,  -_e6d7_.parameter1, _e6d7_.opcode == 0x02),
+			  select(0,  -_e6d7_.parameter0, _e6d7_.opcode == 0x03),
+  
+			  select(0,  -_e6d7_.parameter0, _e6d7_.opcode == 0x04),
+			  select(1, 1/_e6d7_.parameter1, _e6d7_.opcode == 0x01),
+			  select(0,  -_e6d7_.parameter1, _e6d7_.opcode == 0x04),
+			  select(0,  -_e6d7_.parameter1, _e6d7_.opcode == 0x03),
+  
+			  select(0,  -_e6d7_.parameter0, _e6d7_.opcode == 0x05),
+			  select(0,  -_e6d7_.parameter1, _e6d7_.opcode == 0x05),
+			  select(1, 1/_e6d7_.parameter2, _e6d7_.opcode == 0x01),
+			  select(0,  -_e6d7_.parameter2, _e6d7_.opcode == 0x03),
+  
+			  0, 0, 0, 1
+		  );
+	  }
+	  _9a04_[${workgroupX} * id.y + id.x]._5cbe_ = transpose(_6ade_);
+	  _9a04_[${workgroupX} * id.y + id.x]._121d_ = transpose(_1ef7_);
+  }`;
+  
+  _c5a3_.shaders.compute._1d09_.code =
+  `struct _9707_ {
+  	_5cbe_: mat4x4f,
+  	_121d_: mat4x4f
+  };
+  struct _5f0d_ {
+  	_2dd5_: array<_9707_, ${triangleCount}>,
+  	mouseX: f32,
+  	mouseY: f32,
+  	reserved0: u32,
+  	reserved1: u32
+  };
+  struct _4d8b_ {
+  	reserved0: f32,
+  	reserved1: u32,
+  	reserved2: u32,
+  	reserved3: u32
+  };
+  @group(0) @binding(0) var<storage, read> _47bf_: _5f0d_;
+  @group(0) @binding(1) var<storage, read_write> _55c7_: array<_4d8b_, ${triangleCount}>;
+  @compute @workgroup_size(${workgroupX}, 1, 1) fn main(
+  	@builtin(global_invocation_id) id: vec3<u32>
+  ) {
+  	var _95e7_: vec4f;
+  	var _22fe_: f32;
+  	_95e7_ = _47bf_._2dd5_[${workgroupX} * id.y + id.x]._121d_ * vec4f(_47bf_.mouseX, _47bf_.mouseY, 0, 1);
+  	_22fe_ = select(0.0, 1.0, _95e7_.x <= 1 && _95e7_.y >= 0 && _95e7_.x >= _95e7_.y);
+  	_55c7_[${workgroupX} * id.y + id.x].reserved0 = _22fe_;
+  }`;
+  
+  _c5a3_.shaders.vertex.code = 
+  `struct _9707_ {
+  	_5cbe_: mat4x4f,
+  	_121d_: mat4x4f
+  };
+  @group(0) @binding(0) var<storage, read> _ee7b_: array<_9707_, ${triangleCount}>;
+  struct VertexOut {
+  	@builtin(position) position: vec4f,
+  	@location(0) @interpolate(flat) iidx: u32
+  };
+  @vertex fn main(
+  	@builtin(instance_index) iidx: u32,
+  	@builtin(vertex_index) vidx: u32
+  ) -> VertexOut {
+  	var vertexOut: VertexOut;
+  	vertexOut.position = _ee7b_[iidx]._5cbe_ * array<vec4f,3>(
+		  vec4f(0.0, 0.0, 0.0, 1.0),
+		  vec4f(1.0, 0.0, 0.0, 1.0),
+		  vec4f(1.0, 1.0, 0.0, 1.0)
+	  )[vidx];
+	  vertexOut.iidx = iidx;
+	  return vertexOut;
+  }`;
+  
+  _c5a3_.shaders.fragment.code =
+  `struct _9707_ {
+  	_5cbe_: mat4x4f,
+  	_121d_: mat4x4f
+  };
+  struct _4d8b_ {
+  	reserved0: f32,
+  	reserved1: u32,
+  	reserved2: u32,
+  	reserved3: u32
+  };
+  struct _5f0d_ {
+  	_2dd5_: array<_9707_, ${triangleCount}>,
+  	_3fb7_: array<_4d8b_, ${triangleCount}>
+  };
+  @group(0) @binding(0) var<storage, read> _47bf_: _5f0d_;
+  struct VertexOut {
+  	@builtin(position) position: vec4f,
+  	@location(0) @interpolate(flat) iidx: u32
+  };
+  @fragment fn main(
+  	vertexOut: VertexOut
+  ) -> @location(0) vec4f {
+  	return vec4f(1, _47bf_._3fb7_[vertexOut.iidx].reserved0, 0, 1);
+  }`;
+  
+  _c5a3_.shaders.compute._276b_.module = _c5a3_.device.createShaderModule({ code: _c5a3_.shaders.compute._276b_.code });
+  _c5a3_.shaders.compute._1d09_.module = _c5a3_.device.createShaderModule({ code: _c5a3_.shaders.compute._1d09_.code });
+  _c5a3_.shaders.vertex.module = _c5a3_.device.createShaderModule({ code: _c5a3_.shaders.vertex.code });
+  _c5a3_.shaders.fragment.module = _c5a3_.device.createShaderModule({ code: _c5a3_.shaders.fragment.code });
+  
+  _c5a3_.pipelines = { compute: {} };
+  _c5a3_.pipelines.compute._276b_ = _c5a3_.device.createComputePipeline({
+  	layout: "auto",
+  	compute: {
+		  module: _c5a3_.shaders.compute._276b_.module
+	  }
+  });
+  _c5a3_.pipelines.compute._1d09_ = _c5a3_.device.createComputePipeline({
+  	layout: "auto",
+  	compute: {
+		  module: _c5a3_.shaders.compute._1d09_.module
+	  }
+  });
+  _c5a3_.pipelines.render = _c5a3_.device.createRenderPipeline({
+  	layout: "auto",
+  	vertex: {
+		  module: _c5a3_.shaders.vertex.module,
+		  buffers: [{
+  			arrayStride: vertexSize,
+			  attributes: [{
+  				shaderLocation: 0,
+				  offset: 0,
+				  format: "uint32"
+			  }]
+		  }]
+	  },
+	  fragment: {
+  		module: _c5a3_.shaders.fragment.module,
+		  targets: [{
+  			format: navigator.gpu.getPreferredCanvasFormat(),
+			  blend: {
+  				color: { srcFactor: "one", dstFactor: "one", operation: "add" },
+				  alpha: { srcFactor: "one", dstFactor: "one", operation: "add" }
+			  }
+		  }]
+	  },
+	  primitive: {
+  		topology: "triangle-list",
+		  cullMode: "back"
+	  }
+  });
+  
+  if (_c5a3_.buffers) {
+  	_c5a3_.buffers.vertex.destroy();
+  	_c5a3_.buffers.cpuOut.destroy();
+  	_c5a3_.buffers.gpuIn.destroy();
+  	_c5a3_.buffers.gpuOut.destroy();
+  	_c5a3_.buffers.cpuIn.destroy();
+  }
+  _c5a3_.buffers = {};
+  
+  const _325b_ = triangleCount * (8 * (4 * floatSize)); // co out to initial compute; opcodes
+  const _dbfa_ = triangleCount * 2 * transformSize; // gpu initial compute out to gpu render compute, render in; transforms
+  const _651f_ = 0x10; // cpu out to render compute; app state
+  const _48ff_ = triangleCount * 0x10; // gpu render compute out to gpu render in; triangle state
+  const _0559_ = 0; // gpu render compute out to cpu in; results
+  const vxSize = triangleCount * triangleSize;
+  const coSize = Math.max(_325b_, _651f_);
+  const giSize = _dbfa_ + _651f_ + _48ff_;
+  const goSize = Math.max(_dbfa_, _48ff_, _0559_);
+  const ciSize = _0559_;
+  
+  _c5a3_.buffers.vertex = _c5a3_.device.createBuffer({ label: "vx", size: vxSize,	usage: GPUBufferUsage.VERTEX   | GPUBufferUsage.COPY_DST  });
+  _c5a3_.buffers.cpuOut = _c5a3_.device.createBuffer({ label: "co", size: coSize, usage: GPUBufferUsage.COPY_SRC | GPUBufferUsage.MAP_WRITE, mappedAtCreation: true });
+  _c5a3_.buffers.gpuIn  = _c5a3_.device.createBuffer({ label: "gi", size: giSize, usage: GPUBufferUsage.STORAGE  | GPUBufferUsage.COPY_DST  });
+  _c5a3_.buffers.gpuOut = _c5a3_.device.createBuffer({ label: "go", size: goSize, usage: GPUBufferUsage.STORAGE  | GPUBufferUsage.COPY_SRC  });
+  _c5a3_.buffers.cpuIn  = _c5a3_.device.createBuffer({ label: "ci", size: ciSize, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ  });
+  
+  _c5a3_.bindGroups = { compute: {} };
+  _c5a3_.bindGroups.compute._276b_ = _c5a3_.device.createBindGroup({
+  	layout: _c5a3_.pipelines.compute._276b_.getBindGroupLayout(0),
+  	entries: [
+		  { binding: 0, resource: { buffer: _c5a3_.buffers.gpuIn } },
+		  { binding: 1, resource: { buffer: _c5a3_.buffers.gpuOut } }
+	  ]
+  });
+  _c5a3_.bindGroups.compute._1d09_ = _c5a3_.device.createBindGroup({
+  	layout: _c5a3_.pipelines.compute._1d09_.getBindGroupLayout(0),
+  	entries: [
+		  { binding: 0, resource: { buffer: _c5a3_.buffers.gpuIn } },
+		  { binding: 1, resource: { buffer: _c5a3_.buffers.gpuOut } }
+	  ]
+  });
+  _c5a3_.bindGroups.render = _c5a3_.device.createBindGroup({
+  	layout: _c5a3_.pipelines.render.getBindGroupLayout(0),
+  	entries: [
+		  { binding: 0, resource: { buffer: _c5a3_.buffers.gpuIn } }
+	  ]
+  });
+  
+  const commandBuffers = [];
+  const colorAttachments = [];
+  colorAttachments[0] = {
+  	view: undefined,
+  	clearValue: [29/256, 29/256, 29/256, 1],
+  	loadOp: "clear",
+  	storeOp: "store"
+  };
+  const renderPassDescriptor = { colorAttachments };
+  
+  
+  
+  // some basic application variables
+  let _df09_ = true ; // is cpu out mapped
+  let _dc7d_ = false; // is cpu in mapped
+  let _fe4e_ = _c5a3_.buffers.cpuOut.getMappedRange(); // cpu out mapped range
+  let _aca8_; // cpu in mapped range
+  let _e95b_ = false;
+  let xy_shears = Array(triangleCount).fill(0).map(a => Math.random() * -1);
+  const _5425_ = 256;
+  let x_translates = Array(triangleCount).fill(0).map(a => Math.random() * (-1 - 1/_5425_)*2 + 1-1/_5425_);
+  let y_translates = Array(triangleCount).fill(0).map(a => Math.random() * (-1 - 1/_5425_)*2 + 1-1/_5425_);
+  let scales = Array(triangleCount).fill(0).map(a => Math.random() * 2/_5425_ + 2/_5425_);
+  let _c21e_ = Date.now();
+  let _f468_ = Array(triangleCount).fill(0).map(a => Math.random() * Math.PI / 2);
+  const _b7fd_ = [0, 0];
+  
+
+
+  const _bf2b_ = new Uint32Array(_fe4e_);
+  const _42d7_ = new Float32Array(_fe4e_);
+  for (let i = 0; i < triangleCount; i++) {
+  	_bf2b_.set(new Uint32Array ([ 0x02 ]), 8 * 4 * i + 0 * 4 + 0);
+  	_42d7_.set(new Float32Array([ xy_shears[i] ]), 8 * 4 * i + 0 * 4 + 1);
+  	_bf2b_.set(new Uint32Array ([ 0x03 ]), 8 * 4 * i + 1 * 4 + 0);
+  	_42d7_.set(new Float32Array([ -.5, -.5 ]), 8 * 4 * i + 1 * 4 + 1);
+  	_bf2b_.set(new Uint32Array ([ 0x01 ]), 8 * 4 * i + 2 * 4 + 0);
+  	_42d7_.set(new Float32Array([ scales[i], scales[i], 1 ]), 8 * 4 * i + 2 * 4 + 1);
+  	_bf2b_.set(new Uint32Array ([ 0x03 ]), 8 * 4 * i + 3 * 4 + 0);
+  	_42d7_.set(new Float32Array([ x_translates[i], y_translates[i] ]), 8 * 4 * i + 3 * 4 + 1);
+  }
+  _c5a3_.buffers.cpuOut.unmap();
+
+
+
+  // initial compute
+  _c5a3_.commandEncoder = _c5a3_.device.createCommandEncoder();
+  _c5a3_.commandEncoder.copyBufferToBuffer(_c5a3_.buffers.cpuOut, 0, _c5a3_.buffers.gpuIn, 0, coSize);
+  const computePassEncoder = _c5a3_.commandEncoder.beginComputePass();
+  computePassEncoder.setPipeline(_c5a3_.pipelines.compute._276b_);
+  computePassEncoder.setBindGroup(0, _c5a3_.bindGroups.compute._276b_);
+  computePassEncoder.dispatchWorkgroups(workgroupY);
+  computePassEncoder.end();
+  _c5a3_.commandEncoder.copyBufferToBuffer(_c5a3_.buffers.gpuOut, 0, _c5a3_.buffers.gpuIn, 0, _dbfa_);
+  const commandBuffer = _c5a3_.commandEncoder.finish();
+  commandBuffers[0] = commandBuffer;
+  _c5a3_.device.queue.submit(commandBuffers);
+  await Promise.all([_c5a3_.buffers.cpuOut.mapAsync(GPUMapMode.WRITE)]);
+  
+
+
+  const frame = async () => {
+  	if (_aa35_ !== _c5a3_._aa35_) return;
+  	if (!_c5a3_.context.getConfiguration()) return;
+  	_c5a3_.commandEncoder = _c5a3_.device.createCommandEncoder();
+  
+  	
+  
+  	// render compute
+  	_fe4e_ = _c5a3_.buffers.cpuOut.getMappedRange();
+  	const _42d7_ = new Float32Array(_fe4e_);
+  	_42d7_.set(new Float32Array([ ..._b7fd_ ]));
+  	_c5a3_.buffers.cpuOut.unmap();
+  	_c5a3_.commandEncoder.copyBufferToBuffer(_c5a3_.buffers.cpuOut, 0, _c5a3_.buffers.gpuIn, _dbfa_, _651f_);
+  	const computePassEncoder = _c5a3_.commandEncoder.beginComputePass();
+  	computePassEncoder.setPipeline(_c5a3_.pipelines.compute._1d09_);
+  	computePassEncoder.setBindGroup(0, _c5a3_.bindGroups.compute._1d09_);
+  	computePassEncoder.dispatchWorkgroups(workgroupY);
+  	computePassEncoder.end();
+  	_c5a3_.commandEncoder.copyBufferToBuffer(_c5a3_.buffers.gpuOut, 0, _c5a3_.buffers.gpuIn, _dbfa_, _48ff_);
+  
+  
+
+  	// render
+  	colorAttachments[0].view = _c5a3_.context.getCurrentTexture().createView();
+  	const renderPassEncoder = _c5a3_.commandEncoder.beginRenderPass(renderPassDescriptor);
+  	renderPassEncoder.setPipeline(_c5a3_.pipelines.render);
+  	renderPassEncoder.setBindGroup(0, _c5a3_.bindGroups.render);
+  	renderPassEncoder.setVertexBuffer(0, _c5a3_.buffers.vertex);
+  	renderPassEncoder.draw(1 * verticesPerTriangle, triangleCount);
+  	renderPassEncoder.end();
+  	const commandBuffer = _c5a3_.commandEncoder.finish();
+  	commandBuffers[0] = commandBuffer;
+  	_c5a3_.device.queue.submit(commandBuffers);
+  
+  
+
+  	// cpu in handling (also maps cpu out)
+  	await Promise.all([_c5a3_.buffers.cpuIn.mapAsync(GPUMapMode.READ), _c5a3_.buffers.cpuOut.mapAsync(GPUMapMode.WRITE)]);
+  	_aca8_ = _c5a3_.buffers.cpuIn.getMappedRange();
+  	// *do something with cpu in here, if we have it*
+  	_c5a3_.buffers.cpuIn.unmap();
+  
+  
+
+  	// go agane
+  	requestAnimationFrame(frame);
+  };
+
+  if (_c5a3_.onmousemove) document.removeEventListener("mousemove", _c5a3_.onmousemove);
+  _c5a3_.onmousemove = (event) => {
+  	_b7fd_[0] = ( event.offsetX * 2 - canvas.width ) / canvas.width ;
+  	_b7fd_[1] = (-event.offsetY * 2 + canvas.height) / canvas.height;
+  }
+  document.addEventListener("mousemove", _c5a3_.onmousemove);
+  
+  requestAnimationFrame(frame);
+</script>
